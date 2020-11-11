@@ -25,7 +25,7 @@ GENOME_MASKS: genomic masks for common SNP masking and detection of noisy/variab
 
 INDEL_CALLING: set of Perl and R scripts to call indels in NanoSeq data. Instructions are provided in indelCalling_pipeline.sh
 
-NEURONS_SINGLECELLSEQ_SIGNATURES:
+NEURONS_SINGLECELLSEQ_SIGNATURES: R code and data for analysing Lodato et al (Nature 2018) single cell sequencing data, including signature extraction and signature comparison.
 
-SIGNATURE_EXTRACTION:
+SIGNATURE_EXTRACTION: R code relying on sigfit and data to extract substitution signatures in NanoSeq data.
 
