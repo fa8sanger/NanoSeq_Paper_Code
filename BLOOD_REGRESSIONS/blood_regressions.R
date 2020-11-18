@@ -87,7 +87,7 @@ setwd("BLOOD_REGRESSIONS")
 	both_df = rbind(colonies[,c("age","muts_per_cell","donor","type")],
 	                nanoseq_for_lm[,c("age","muts_per_cell","donor","type")])
 
-	interaction_model = lmer(muts_per_cell ~ age*type + type + (age - 1|donor),data=both_df,REML=F)
+	interaction_model = lmer(muts_per_cell ~ age*type + (age - 1|donor),data=both_df,REML=F)
 	# age:typegrans: 0.30 [CI95% -4.50, 5.09]
 	
 	# Test if the interaction is significant (i.e. if the slopes are significantly different):
