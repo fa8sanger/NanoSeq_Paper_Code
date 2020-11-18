@@ -82,6 +82,11 @@ setwd("BLOOD_REGRESSIONS")
 ##########################################################################################
 # Test if the slopes for colonies and grans are significantly different:
 
+	colonies$type = "colonies"
+	nanoseq_for_lm$type = "grans"
+	both_df = rbind(colonies[,c("age","muts_per_cell","donor","type")],
+	                nanoseq_for_lm[,c("age","muts_per_cell","donor","type")])
+
 	interaction_model = lmer(muts_per_cell ~ age*type + type + (age - 1|donor),data=both_df,REML=F)
 	# age:typegrans: 0.30 [CI95% -4.50, 5.09]
 	
