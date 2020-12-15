@@ -10,6 +10,9 @@ https://github.com/cancerit/NanoSeq
 
 Below is a brief summary of the content of each directory.
 
+### BARCODE_CLASHES
+Contains R code to estimate the impact of barcode clashes (chimeric read bundles) on burden estimates
+
 ### BLOOD_REGRESSIONS
 Contains R code and accompanying data to do the regression analysis of
 granulocytes and stem cell colonies
@@ -27,6 +30,7 @@ Code to estimate the relationship between library yields (in fmol) and library c
 
 ### GENOME_MASKS
 Genomic masks for common SNP masking and detection of noisy/variable genomic sites. Build GRCh37.
+These masks are available at: https://drive.google.com/drive/folders/1wqkgpRTuf4EUhqCGSLA4fIg9qEEw3ZcL?usp=sharing
 
 ### INDEL_CALLING
 Collection of Perl and R scripts to call indels in NanoSeq data. Instructions are provided in indelCalling_pipeline.sh
