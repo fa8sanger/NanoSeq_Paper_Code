@@ -6,6 +6,7 @@ mutation burden is available at:
 
 https://github.com/cancerit/NanoSeq
 
+Questions or requests to fa8@sanger.ac.uk.
 
 Below is a brief summary of the content of each directory.
 
