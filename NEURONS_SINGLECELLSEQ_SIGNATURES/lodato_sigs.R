@@ -14,6 +14,7 @@ library(sigfit)
 library("GenomicRanges")
 library("Rsamtools")
 library("MASS")
+library("deconstructSigs")
 library(lsa) # for cosine similarity	
 genomeFile = "/Users/fa8/Desktop/PANCANCER/TRANSCRIPTION_VS_INDELS_ANALYSIS/hs37d5.fa"
 
@@ -76,7 +77,7 @@ list2env(mylist ,.GlobalEnv) # Bring the dataframes to the global environment
 # Plot the entire profile
 	pdf("Lodato.spectrum_cosmiclike.pdf",width=12,height=4)
 	colvec = rep(c("dodgerblue","black","red","grey70","olivedrab3","plum2"),each=16)
-	y = freqs_full; maxy = max(y)
+	y = apply(by_donor,2,sum); maxy = max(y)
 	h = barplot(y, las=2, col=colvec, border=NA, ylim=c(0,maxy*1.5), space=1, cex.names=0.6, names.arg=xstr, ylab="Number mutations", main="Lodato et al, all neurons")
 	for (j in 1:length(sub_vec)) {
 	    xpos = h[c((j-1)*16+1,j*16)]
@@ -105,10 +106,29 @@ list2env(mylist ,.GlobalEnv) # Bring the dataframes to the global environment
 	# exposures <- retrieve_pars(mcmc_samples_refit, "exposures")
 	# plot_exposures(counts = profiles, exposures = exposures,
 	#                pdf_path = "Exposures3SIGS-LODATO.pdf")
+
+##########################################################################################
+# Plot signature normalised by genomic trinucleotide content (real mutation rates)
+	tris = as.vector(as.matrix(tri.counts.genome[,1]))
+	names(tris) = rownames(tri.counts.genome)
+	good_sig = as.vector(as.matrix(signatures3$mean[3,]))
+	names(good_sig) = colnames(signatures3$mean[3,])
+	tri_prefixes = substr(names(good_sig),1,3)	
+	good_sig_normalised = good_sig / tris[tri_prefixes]
+	pdf("Lodato.LDA-normalised.pdf",width=12,height=4)
+	colvec = rep(c("dodgerblue","black","red","grey70","olivedrab3","plum2"),each=16)
+	y = good_sig_normalised; maxy = max(y)
+	h = barplot(y, las=2, col=colvec, border=NA, ylim=c(0,maxy*1.5), space=1, cex.names=0.6, names.arg=xstr, ylab="Number mutations", main="Normalised LDA signature")
+	for (j in 1:length(sub_vec)) {
+	    xpos = h[c((j-1)*16+1,j*16)]
+	    rect(xpos[1]-0.5, maxy*1.2, xpos[2]+0.5, maxy*1.3, border=NA, col=colvec[j*16])
+	    text(x=mean(xpos), y=maxy*1.3, pos=3, label=sub_vec[j])
+	}    
+	dev.off()
 	
 ##########################################################################################
 # Comparison with NanoSeq data:
-	profiles = read.table("triprofiles.tsv",sep="\t",header=T)
+	profiles = read.table("../DATA/profiles.tsv",sep="\t",header=T)
 	profiles = profiles[grep("neuron",rownames(profiles)),]
 	cosine(apply(profiles,2,sum),as.vector(as.matrix(signatures3$mean[1,]))) # 0.6593344
 	cosine(apply(profiles,2,sum),as.vector(as.matrix(signatures3$mean[2,]))) # 0.5351618
