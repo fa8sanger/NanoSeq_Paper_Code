@@ -17,6 +17,7 @@ genome_size = sum(tri.counts.genome)*2
 	nanoseq = read.table("../DATA/rates.tsv",header=T,sep="\t")
 	nanoseq = nanoseq[which(nanoseq$cell_type %in% c("grans","cordblood")),]
 	nanoseq = nanoseq[-which(nanoseq$sampleID %in% c("PD43976-Botseq","PD43976-Nanoseq")),]
+	nanoseq = nanoseq[grep("botseq",nanoseq$sampleID,invert=T),]
 	
 	# Apply the correction for cord blood:
 	nanoseq_correction = 1/(1-0.26) # 26.2% percentage of mutations lost. I need to multiply by nanoseq_correction
@@ -160,9 +161,129 @@ genome_size = sum(tri.counts.genome)*2
 		coef = fixef(nanoseq_lmer)
 		abline(coef[1], coef[2], col="firebrick",lty=2)
 
+##########################################################################################
+# Panel c - substitution profiles 59 year old donor
+library(lsa)
+
+profiles     = read.table("../DATA/profiles.tsv",sep="\t",header=T,row.names=1)
+col_names    = colnames(profiles)
+nanoseq_tri  = as.vector(as.matrix(profiles["PD43976_grans_nanoseq", ]))
+colonies_tri = as.vector(as.matrix(profiles["PD43976_grans_colonies",]))
+botseq_tri   = as.vector(as.matrix(profiles["PD43976_grans_botseq",  ]))
+names(nanoseq_tri) = names(colonies_tri) = names(botseq_tri) = gsub("\\.",">",col_names)
+
+	
+	obs_botseq  = botseq_tri
+	obs_nanoseq = nanoseq_tri
+	ref         = colonies_tri
+
+	# Calculate cosine similarity
+	obs_cosine_sim_botseq  = cosine(obs_botseq, ref)
+	obs_cosine_sim_nanoseq = cosine(obs_nanoseq,ref)
+	
+	# Calculate expected cosine similarity
+	# Botseq
+	cosines <- vector()
+	simuls = list()
+	SIMUL_SIZE = 1000
+	for(i in c(1:SIMUL_SIZE)) {
+		# Simulate dataset of size round(sum(obs))
+		size = round(sum(obs_botseq))
+		simul_ = sample(names(ref),size=size,p=ref/sum(ref),replace=T)
+		simul  = table(simul_)
+		simul[setdiff(names(ref),names(simul))] = 0
+		simul  = as.vector(simul[names(ref)])
+		names(simul) = names(obs_botseq)
+		simuls[[i]] = simul
+		#ref_tmp = ref - simul
+		#cosines[i] = cosine(simul,ref_tmp)
+		cosines[i] = cosine(simul,ref)
+	}
+	expected_cosine_sim_botseq       = mean(cosines) 
+	stdev_expected_cosine_sim_botseq = sd(cosines)  
+	lci_95_botseq                    = sort(cosines)[round(SIMUL_SIZE*0.025)] 
+	uci_95_botseq                    = sort(cosines)[round(SIMUL_SIZE*0.975)] 
+	cosines_botseq                   = cosines
+	
+	# Nanoseq
+	cosines <- vector()
+	simuls = list()
+	SIMUL_SIZE = 1000
+	for(i in c(1:SIMUL_SIZE)) {
+		# Simulate dataset of size round(sum(obs))
+		size = round(sum(obs_nanoseq))
+		simul_ = sample(names(ref),size=size,p=ref/sum(ref),replace=T)
+		simul  = table(simul_)
+		simul[setdiff(names(ref),names(simul))] = 0
+		simul  = as.vector(simul[names(ref)])
+		names(simul) = names(obs_botseq)
+		simuls[[i]] = simul
+		#ref_tmp = ref - simul
+		#cosines[i] = cosine(simul,ref_tmp)
+		cosines[i] = cosine(simul,ref)
+	}
+	expected_cosine_sim_nanoseq       = mean(cosines) 
+	stdev_expected_cosine_sim_nanoseq = sd(cosines)  
+	lci_95_nanoseq                    = sort(cosines)[round(SIMUL_SIZE*0.025)] 
+	uci_95_nanoseq                    = sort(cosines)[round(SIMUL_SIZE*0.975)] 
+	cosines_nanoseq                   = cosines
+	
+	
+	colours        = rep(c("deepskyblue","black","firebrick2","gray","darkolivegreen3","rosybrown2"),each=16)
+	colours        = rep(c( rgb(34/255,159/255,198/255), rgb(26/255,26/255,26/255),
+                            rgb(201/255,93/255,94/255),  rgb(178/255,182/255,180/255),
+                            rgb(153/255,208/255,62/255), rgb(217/255,190/255,217/255)), each=16)
+
+	sub_vec        = c("C>A","C>G","C>T","T>A","T>C","T>G")
+	ctx_vec        = paste(rep(c("A","C","G","T"),each=4),rep(c("A","C","G","T"),times=4),sep="-")
+	full_vec       = paste(rep(sub_vec,each=16),rep(ctx_vec,times=6),sep=",")
+	xstr           = paste(substr(full_vec,5,5), substr(full_vec,1,1), substr(full_vec,7,7), sep="")
+	ordered_names  = paste(xstr,">",rep(c("A","G","T","A","C","G"),each=16),sep="")
+	obs_botseq     = obs_botseq[ordered_names]
+	obs_nanoseq    = obs_nanoseq[ordered_names]
+	ref            = ref[ordered_names]
+	
+	######################################################################################
+	# And plot it
+	dev.new(width=8,height=7)
+	par(mfrow=c(3,1))
+	par(mar=c(2,4,5,3))
+	par(mgp=c(3,1,0)) # or 3,1,0?
+	
+	#pdf("cord_blood.96_profile-profile_sigs.cosine.pdf",width=10,height=6)
+	y = ref
+	maxy = max(y)
+	names(y) = NULL
+	h = barplot(y, las=2, col=colours, border=NA, ylim=c(0,maxy*1.5), space=0.1, cex.names=0.6, names.arg=NULL, #names.arg=xstr, 
+	            ylab="Mutation counts",main="Colonies")
+	for (j in 1:length(sub_vec)) {
+	 	xpos = h[c((j-1)*16+1,j*16)]
+	    rect(xpos[1]-0.5, maxy*1.2, xpos[2]+0.5, maxy*1.3, border=NA, col=colours[j*16])
+	 	text(x=mean(xpos), y=maxy*1.3, pos=3, label=sub_vec[j])
+	}    
+	y = obs_botseq
+	names(y) = NULL
+	maxy = max(y)
+	h = barplot(y, las=2, col=colours, border=NA, ylim=c(0,maxy*1.5), space=.1, cex.names=0.6, names.arg=NULL, #names.arg=xstr, 
+	            ylab="Corr. mutation counts",main=paste("Botseq","\nobs_cos_sim=",round(obs_cosine_sim_botseq,2),"\nexp_cos_sim=",round(expected_cosine_sim_botseq,2)," [CI95: ",round(lci_95_botseq,2),"-",round(uci_95_botseq,2),"]",sep=""),cex.main=.7)
+	for (j in 1:length(sub_vec)) {
+	 	xpos = h[c((j-1)*16+1,j*16)]
+	    #rect(xpos[1]-0.5, maxy*1.2, xpos[2]+0.5, maxy*1.3, border=NA, col=colours[j*16])
+	 	#text(x=mean(xpos), y=maxy*1.3, pos=3, label=sub_vec[j])
+	}    
+	y = obs_nanoseq
+	maxy = max(y)
+	h = barplot(y, las=2, col=colours, border=NA, ylim=c(0,maxy*1.5), space=.1, cex.names=0.6, names.arg=xstr, 
+	            ylab="Corr. mutation counts",main=paste("Nanoseq","\nobs_cos_sim=",round(obs_cosine_sim_nanoseq,2),"\nexp_cos_sim=",round(expected_cosine_sim_nanoseq,2)," [CI95: ",round(lci_95_nanoseq,2),"-",round(uci_95_nanoseq,2),"]",sep=""),cex.main=.7)
+	for (j in 1:length(sub_vec)) {
+	 	xpos = h[c((j-1)*16+1,j*16)]
+	    #rect(xpos[1]-0.5, maxy*1.2, xpos[2]+0.5, maxy*1.3, border=NA, col=colours[j*16])
+	 	#text(x=mean(xpos), y=maxy*1.3, pos=3, label=sub_vec[j])
+	}    
+
 
 ##########################################################################################
-# Panel c - colonic crypts boxplots and comparison to LCM-Caveman crypts
+# Panel d - colonic crypts boxplots and comparison to LCM-Caveman crypts
 	library(deconstructSigs)
 	genome_size = sum(tri.counts.genome)*2
 
@@ -210,8 +331,86 @@ genome_size = sum(tri.counts.genome)*2
 	points(rep(3,nrow(nanoseq[grep(samples[3],nanoseq$donor),])),nanoseq[grep(samples[3],nanoseq$donor),"muts_per_cell"],pch=20,col="firebrick",cex=1.3)
 
 
+
+
 ##########################################################################################
-# Panel d: substitution profiles and cosine similarities:
+# Panel e
+# Burden signatures 1 and 5
+library(deconstructSigs)
+profiles = read.table("../DATA/profiles.tsv",sep="\t",header=T,row.names=1)
+profiles = profiles[grep("nanoseq",rownames(profiles)),]
+profiles = profiles[grep("crypt",rownames(profiles)),]
+colnames(profiles) = gsub("\\.",">",colnames(profiles))
+exposures = as.data.frame(matrix(nrow=length(grep("colonic",rownames(profiles),value=T)),ncol=3))
+colnames(exposures) = c("SBS1","SBS5","Colibactin") 
+rownames(exposures) = grep("colonic",rownames(profiles),value=T)
+for(s in grep("colonic",rownames(profiles),value=T)) {
+	kk=whichSignatures(profiles,s, contexts.needed=T,
+ 	                  signatures.ref = "../DATA/one_five_colibactin.v3.tsv")
+	cat(s,":","\n")
+	print(kk$weights)
+	exposures[s,] = kk$weights
+}
+par(mar=c(12,3,3,3))
+barplot(t(as.matrix(exposures)),las=2,cex.names=.7,ylim=c(0,1.5),col=c("coral3","cornsilk4","darkgoldenrod"))
+legend("top",legend=c("SBS1","SBS5","Colibactin") ,
+       col=c("coral3","cornsilk4","darkgoldenrod"),pch=15,
+       cex=.6,pt.cex=1)
+
+
+
+# Plot regression signatures SBS1 + SBS5 (i.e. excluding colibactin)
+genome_size = sum(tri.counts.genome)*2
+
+nanoseq = read.table("../DATA/rates.tsv",header=T,sep="\t")
+nanoseq = nanoseq[which(nanoseq$cell_type=="crypt"),]
+
+nanoseq$mut_rate_final = nanoseq$burden
+nanoseq$lci_final      = nanoseq$burden_lci     
+nanoseq$uci_final      = nanoseq$burden_uci     
+
+nanoseq$muts_per_cell  = nanoseq$mut_rate_final* genome_size 
+nanoseq$lci_final      = nanoseq$lci_final     * genome_size 
+nanoseq$uci_final      = nanoseq$uci_final     * genome_size 
+
+nanoseq$sig1_muts = nanoseq$muts_per_cell * exposures[,"SBS1"]
+nanoseq$sig5_muts = nanoseq$muts_per_cell * exposures[,"SBS5"]
+nanoseq$sig1_mutslci = nanoseq$lci_final * exposures[,"SBS1"]
+nanoseq$sig5_mutslci = nanoseq$lci_final * exposures[,"SBS5"]
+nanoseq$sig1_mutsuci = nanoseq$uci_final * exposures[,"SBS1"]
+nanoseq$sig5_mutsuci = nanoseq$uci_final * exposures[,"SBS5"]
+
+nanoseq$donor = substr(nanoseq$sampleID,1,7)
+nanoseq$sig1y5_muts    = nanoseq$muts_per_cell * (exposures[,"SBS1"]+exposures[,"SBS5"])
+nanoseq$sig1y5_mutslci = nanoseq$lci_final     * (exposures[,"SBS1"]+exposures[,"SBS5"])
+nanoseq$sig1y5_mutsuci = nanoseq$uci_final     * (exposures[,"SBS1"]+exposures[,"SBS5"])
+
+# Regression and plot
+	# With conf intervals and mixed-effects:
+	library(lme4)
+	model1 = lmer(sig1y5_muts ~ age + (age-1|donor),data=nanoseq)
+	# Now without intercept! (because it was not significantly different from 0)
+	model2 = lmer(sig1y5_muts ~ age + (age-1|donor) -1,data=nanoseq)
+	plot(nanoseq$age,nanoseq$sig1y5_muts, type="n",
+	     xlab="Age",
+	     ylab="SBS1/SBS5 substitutions per cell",
+	     ylim=c(0,max(nanoseq$sig1y5_mutsuci)),
+	     main="Colonic crypts",
+	     las=2,
+	     xlim=c(0,80), frame.plot=F)
+	library(bootpredictlme4)
+	ages = seq(from=0,to=100,by=7)
+	nsim = 1000
+	rr = sapply(ages,function(x) predict(model1, newdata=data.frame(age=x), re.form=NA, se.fit=TRUE, nsim=nsim)$ci.fit[,1])		
+	polygon(x=c(ages, rev(ages)), y=c(rr[1,], rev(rr[2,])), col="grey90", border=NA)
+	segments(nanoseq$age,nanoseq$sig1y5_mutslci,nanoseq$age,nanoseq$sig1y5_mutsuci,col="black")
+	points(nanoseq$age,nanoseq$sig1y5_muts,pch=20,col="firebrick")
+	abline(coef=fixef(model1),col="firebrick",lty=2)
+
+
+
+##########################################################################################
+# Panel EDF6d: substitution profiles and cosine similarities:
 
 profiles = read.table("../DATA/profiles.tsv",sep="\t",header=T,row.names=1)
 nano_counts = list()
@@ -343,80 +542,3 @@ for(sample in samples) {
 		}    
 		dev.off()
 }
-
-
-##########################################################################################
-# Burden signatures 1 and 5
-library(deconstructSigs)
-profiles = read.table("../DATA/profiles.tsv",sep="\t",header=T,row.names=1)
-profiles = profiles[grep("nanoseq",rownames(profiles)),]
-profiles = profiles[grep("crypt",rownames(profiles)),]
-colnames(profiles) = gsub("\\.",">",colnames(profiles))
-exposures = as.data.frame(matrix(nrow=length(grep("colonic",rownames(profiles),value=T)),ncol=3))
-colnames(exposures) = c("SBS1","SBS5","Colibactin") 
-rownames(exposures) = grep("colonic",rownames(profiles),value=T)
-for(s in grep("colonic",rownames(profiles),value=T)) {
-	kk=whichSignatures(profiles,s, contexts.needed=T,
- 	                  signatures.ref = "../DATA/one_five_colibactin.v3.tsv")
-	cat(s,":","\n")
-	print(kk$weights)
-	exposures[s,] = kk$weights
-}
-par(mar=c(12,3,3,3))
-barplot(t(as.matrix(exposures)),las=2,cex.names=.7,ylim=c(0,1.5),col=c("coral3","cornsilk4","darkgoldenrod"))
-legend("top",legend=c("SBS1","SBS5","Colibactin") ,
-       col=c("coral3","cornsilk4","darkgoldenrod"),pch=15,
-       cex=.6,pt.cex=1)
-
-
-
-# Plot regression signatures SBS1 + SBS5 (i.e. excluding colibactin)
-genome_size = sum(tri.counts.genome)*2
-
-nanoseq = read.table("../DATA/rates.tsv",header=T,sep="\t")
-nanoseq = nanoseq[which(nanoseq$cell_type=="crypt"),]
-
-nanoseq$mut_rate_final = nanoseq$burden
-nanoseq$lci_final      = nanoseq$burden_lci     
-nanoseq$uci_final      = nanoseq$burden_uci     
-
-nanoseq$muts_per_cell  = nanoseq$mut_rate_final* genome_size 
-nanoseq$lci_final      = nanoseq$lci_final     * genome_size 
-nanoseq$uci_final      = nanoseq$uci_final     * genome_size 
-
-nanoseq$sig1_muts = nanoseq$muts_per_cell * exposures[,"SBS1"]
-nanoseq$sig5_muts = nanoseq$muts_per_cell * exposures[,"SBS5"]
-nanoseq$sig1_mutslci = nanoseq$lci_final * exposures[,"SBS1"]
-nanoseq$sig5_mutslci = nanoseq$lci_final * exposures[,"SBS5"]
-nanoseq$sig1_mutsuci = nanoseq$uci_final * exposures[,"SBS1"]
-nanoseq$sig5_mutsuci = nanoseq$uci_final * exposures[,"SBS5"]
-
-nanoseq$donor = substr(nanoseq$sampleID,1,7)
-nanoseq$sig1y5_muts    = nanoseq$muts_per_cell * (exposures[,"SBS1"]+exposures[,"SBS5"])
-nanoseq$sig1y5_mutslci = nanoseq$lci_final     * (exposures[,"SBS1"]+exposures[,"SBS5"])
-nanoseq$sig1y5_mutsuci = nanoseq$uci_final     * (exposures[,"SBS1"]+exposures[,"SBS5"])
-
-# Regression and plot
-	# With conf intervals and mixed-effects:
-	library(lme4)
-	model1 = lmer(sig1y5_muts ~ age + (age-1|donor),data=nanoseq)
-	# Now without intercept! (because it was not significantly different from 0)
-	model2 = lmer(sig1y5_muts ~ age + (age-1|donor) -1,data=nanoseq)
-	plot(nanoseq$age,nanoseq$sig1y5_muts, type="n",
-	     xlab="Age",
-	     ylab="SBS1/SBS5 substitutions per cell",
-	     ylim=c(0,max(nanoseq$sig1y5_mutsuci)),
-	     main="Colonic crypts",
-	     las=2,
-	     xlim=c(0,80), frame.plot=F)
-	library(bootpredictlme4)
-	ages = seq(from=0,to=100,by=7)
-	nsim = 1000
-	rr = sapply(ages,function(x) predict(model1, newdata=data.frame(age=x), re.form=NA, se.fit=TRUE, nsim=nsim)$ci.fit[,1])		
-	polygon(x=c(ages, rev(ages)), y=c(rr[1,], rev(rr[2,])), col="grey90", border=NA)
-	segments(nanoseq$age,nanoseq$sig1y5_mutslci,nanoseq$age,nanoseq$sig1y5_mutsuci,col="black")
-	points(nanoseq$age,nanoseq$sig1y5_muts,pch=20,col="firebrick")
-	abline(coef=fixef(model1),col="firebrick",lty=2)
-
-
-
