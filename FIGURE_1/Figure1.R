@@ -17,12 +17,14 @@ cis_botseq = (poisson.test(round(num_muts_botseq))$conf.int/num_sites_botseq)[c(
 
 
 # Colonies rates:
+colonies = read.table("../DATA/colonies_rates.tsv",sep="\t",header=T)
 rr = read.table("../DATA/rates_caveman.tsv",sep="\t",header=F)
 colnames(rr) = c("kk","file","sample","muts_caveman","c20_genome","muts","corr_muts","c20_nanoseq_genome","obs_rate","corr_rate")
 files = unique(rr$file)
 ages = vector()
 ages[files] = c(59,63,54,38,36,0,29,38,48,81,0,77)
 files = files[c(6,11)]
+rr = rr[which(rr$sample %in% colonies$sample),]
 all_num_muts = vector()
 corr_muts    = vector()
 obs_muts     = vector()
@@ -202,9 +204,87 @@ for (j in 1:length(sub_vec)) {
 # Fig 1d: asymmetries - plots obtained with botseq_results_plotter.R 
 # Code available at https://github.com/cancerit/NanoSeq
 
+##################################################################################################
+# Fig 1f: cord blood burdens
+library(deconstructSigs)
+genome_size = sum(tri.counts.genome)*2
+
+# Colonies rates:
+colonies = read.table("../DATA/colonies_rates.tsv",sep="\t",header=T)
+rr = read.table("../DATA/rates_caveman.tsv",sep="\t",header=F)
+colnames(rr) = c("kk","file","sample","muts_caveman","c20_genome","muts","corr_muts","c20_nanoseq_genome","obs_rate","corr_rate")
+files = unique(rr$file)
+ages = vector()
+ages[files] = c(59,63,54,38,36,0,29,38,48,81,0,77)
+files = files[c(6,11)]
+rr = rr[which(rr$sample %in% colonies$sample),]
+all_num_muts = vector()
+corr_muts    = vector()
+obs_muts     = vector()
+c20_nanoseq_genomes = vector()
+	for(file in files) {
+	    res = rr[which(rr$file == file),]
+	    res = res[which(res$c20_nanoseq_genome>200e6),]
+	    cat(median(res$c20_genome),"\n")
+		# boxplot(res[,c("muts","muts_per_cell")],main=file,
+		res$muts_per_cell = res$corr_rate * genome_size
+		cat(file,":",ages[file],"\n")
+		all_num_muts = c(all_num_muts,res$muts_per_cell)
+		corr_muts    = c(corr_muts,res$corr_muts)
+		obs_muts     = c(obs_muts,res$muts)
+		c20_nanoseq_genomes = c(c20_nanoseq_genomes,res$c20_nanoseq_genome)
+	}
+rate = sum(corr_muts)/sum(c20_nanoseq_genomes)
+cis  = poisson.test(sum(obs_muts))$conf.int[c(1,2)]/sum(c20_nanoseq_genomes) * sum(corr_muts)/sum(obs_muts)
+mean_muts = rate * genome_size
+ci_muts   = cis * genome_size
+
+# NanoSeq rates:
+nanoseq                = read.table("../DATA/rates.tsv",sep="\t",header=T)
+nanoseq                = nanoseq[which(nanoseq$age==0),]
+nanoseq                = nanoseq[grep("botseq",nanoseq$sampleID,invert=T),]
+nanoseq_correction     = 1/(1-0.24) # 24% percentage of mutations lost. I need to multiply by nanoseq_correction
+nanoseq$mut_rate_final = nanoseq$burden        * nanoseq_correction
+nanoseq$lci_final      = nanoseq$burden_lci    * nanoseq_correction
+nanoseq$uci_final      = nanoseq$burden_uci    * nanoseq_correction
+nanoseq$muts_per_cell  = nanoseq$mut_rate_final* genome_size
+nanoseq$lci_final      = nanoseq$lci_final     * genome_size
+nanoseq$uci_final      = nanoseq$uci_final     * genome_size
+
+par(mar=c(10,4,3,3))
+plot(NULL,NULL,xlim=c(0,10),ylim=c(0,max(nanoseq$uci_final)),
+     ylab="Number of mutations per cell",cex=.7,
+     main="Cord blood",xaxt='n',xlab="",bty="n",frame.plot=F)
+boxplot(all_num_muts,at = 1,add = T, col="darkcyan",width=1.5,notch=T,bty="n",frame.plot=F,
+         pch=20,outcol="gray")
+segments(1,ci_muts[1],1,ci_muts[2],col="red")
+points(1,mean_muts,pch=20,col="red",cex=.7)
+
+colours = vector()
+colours[1:6] = "aquamarine4"
+colours[7]   = "aquamarine3"
+for(i in c(1:nrow(nanoseq))) {
+	rect(2.6+i-1,
+	     nanoseq[i,"burden"] * genome_size,
+	     3.4+i-1,
+	     0,
+	     col=colours[i],
+	     border=F)
+	rect(2.6+i-1,
+	     nanoseq[i,"muts_per_cell"],
+	     3.4+i-1,
+	     nanoseq[i,"burden"] * genome_size,
+	     col="azure3",
+	     border=F)
+}
+segments(c(3:(3+nrow(nanoseq)-1)),nanoseq$lci_final,c(3:(3+nrow(nanoseq)-1)),nanoseq$uci_final,lwd=1,col="black")
+
+axis(side=1, at=c(1,c(3:(3+nrow(nanoseq)-1))), labels=c("Colonies",c(rep("Nanoseq-S1",6),"Nanoseq-S2")), 
+     pos=c(1,c(3:(3+nrow(nanoseq)-1))),las=2)
+
 
 ##################################################################################################
-# Fig 1f: sperm rates
+# Fig 1g: sperm rates
 # Substitutions per year obtained from the literature
 	exp1 = 2.01
 	lci1 = 1.68
@@ -244,81 +324,6 @@ axis(side=1, at=c(1,2.5,c(5:(5+nrow(nanoseq)-1))), labels=c("Kong 2012","Rahbari
      pos=c(1,2.5,c(5:(5+nrow(nanoseq)-1))),las=2)
 
 
-
-##################################################################################################
-# Fig 1g: cord blood burdens
-library(deconstructSigs)
-genome_size = sum(tri.counts.genome)*2
-
-# Colonies rates:
-rr = read.table("../DATA/rates_caveman.tsv",sep="\t",header=F)
-colnames(rr) = c("kk","file","sample","muts_caveman","c20_genome","muts","corr_muts","c20_nanoseq_genome","obs_rate","corr_rate")
-files = unique(rr$file)
-ages = vector()
-ages[files] = c(59,63,54,38,36,0,29,38,48,81,0,77)
-files = files[c(6,11)]
-all_num_muts = vector()
-corr_muts    = vector()
-obs_muts     = vector()
-c20_nanoseq_genomes = vector()
-	for(file in files) {
-	    res = rr[which(rr$file == file),]
-	    res = res[which(res$c20_nanoseq_genome>200e6),]
-	    cat(median(res$c20_genome),"\n")
-		# boxplot(res[,c("muts","muts_per_cell")],main=file,
-		res$muts_per_cell = res$corr_rate * genome_size
-		cat(file,":",ages[file],"\n")
-		all_num_muts = c(all_num_muts,res$muts_per_cell)
-		corr_muts    = c(corr_muts,res$corr_muts)
-		obs_muts     = c(obs_muts,res$muts)
-		c20_nanoseq_genomes = c(c20_nanoseq_genomes,res$c20_nanoseq_genome)
-	}
-rate = sum(corr_muts)/sum(c20_nanoseq_genomes)
-cis  = poisson.test(sum(obs_muts))$conf.int[c(1,2)]/sum(c20_nanoseq_genomes) * sum(corr_muts)/sum(obs_muts)
-mean_muts = rate * genome_size
-ci_muts   = cis * genome_size
-
-# NanoSeq rates:
-nanoseq                = read.table("../DATA/rates.tsv",sep="\t",header=T)
-nanoseq                = nanoseq[which(nanoseq$age==0),]
-nanoseq_correction     = 1/(1-0.24) # 24% percentage of mutations lost. I need to multiply by nanoseq_correction
-nanoseq$mut_rate_final = nanoseq$burden        * nanoseq_correction
-nanoseq$lci_final      = nanoseq$burden_lci    * nanoseq_correction
-nanoseq$uci_final      = nanoseq$burden_uci    * nanoseq_correction
-nanoseq$muts_per_cell  = nanoseq$mut_rate_final* genome_size
-nanoseq$lci_final      = nanoseq$lci_final     * genome_size
-nanoseq$uci_final      = nanoseq$uci_final     * genome_size
-
-par(mar=c(10,4,3,3))
-plot(NULL,NULL,xlim=c(0,10),ylim=c(0,max(nanoseq$uci_final)),
-     ylab="Number of mutations per cell",cex=.7,
-     main="Cord blood",xaxt='n',xlab="",bty="n",frame.plot=F)
-boxplot(all_num_muts,at = 1,add = T, col="darkcyan",width=1.5,notch=T,bty="n",frame.plot=F,
-         pch=20,outcol="gray")
-segments(1,ci_muts[1],1,ci_muts[2],col="red")
-points(1,mean_muts,pch=20,col="red",cex=.7)
-
-colours = vector()
-colours[1:6] = "aquamarine4"
-colours[7]   = "aquamarine3"
-for(i in c(1:nrow(nanoseq))) {
-	rect(2.6+i-1,
-	     nanoseq[i,"burden"] * genome_size,
-	     3.4+i-1,
-	     0,
-	     col=colours[i],
-	     border=F)
-	rect(2.6+i-1,
-	     nanoseq[i,"muts_per_cell"],
-	     3.4+i-1,
-	     nanoseq[i,"burden"] * genome_size,
-	     col="azure3",
-	     border=F)
-}
-segments(c(3:(3+nrow(nanoseq)-1)),nanoseq$lci_final,c(3:(3+nrow(nanoseq)-1)),nanoseq$uci_final,lwd=1,col="black")
-
-axis(side=1, at=c(1,c(3:(3+nrow(nanoseq)-1))), labels=c("Colonies",c(rep("Nanoseq-S1",6),"Nanoseq-S2")), 
-     pos=c(1,c(3:(3+nrow(nanoseq)-1))),las=2)
 
 
 
